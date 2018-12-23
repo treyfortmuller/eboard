@@ -1,3 +1,8 @@
+#include <printf.h>
+#include <nRF24L01.h>
+#include <RF24_config.h>
+#include <RF24.h>
+
 /* 
 CONNECTIONS
 nRF24L01 Radio Module: See http://arduino-info.wikispaces.com/Nrf24L01-2.4GHz-HowTo
@@ -11,14 +16,11 @@ nRF24L01 Radio Module: See http://arduino-info.wikispaces.com/Nrf24L01-2.4GHz-Ho
    8 - UNUSED
 */
 
-// import required libraries
-#include <SPI.h>   // Comes with Arduino IDE
-#include "RF24.h"  // Download and Install (See above)
-#include "printf.h" // Needed for "printDetails" Takes up some memory
+/***************************** Defines *********************************/
 
-// define constants
-#define  CE_PIN  7   // The pins to be used for CE and SN
-#define  CSN_PIN 8
+// The pins to be used for CE and SN
+#define PIN_RF24_CE  7
+#define PIN_RF24_CSN 8
 
 #define PWM_MIN 850
 #define PWM_MAX 2150
@@ -36,51 +38,57 @@ int ppm[CHANNEL_NUMBER];
 
 // initialize objects
 /* Hardware configuration: Set up nRF24L01 radio on SPI bus plus (usually) pins 7 & 8 (Can be changed) */
-RF24 radio(CE_PIN, CSN_PIN);
+RF24 radio(PIN_RF24_CE, PIN_RF24_CSN);
 
 // variables declaration
 byte addresses[][6] = {"1Node", "2Node"}; // These will be the names of the "Pipes"
 
 int armed = 1000;
 
-// initialize a data strucuture for the received packets
+/***************************** Structs *********************************/
+
+// initialize a data strucuture for the received packets ???
 struct dataStruct {
   unsigned long _micros;  // to save response times
-
-  bool deadmansSwitch;    // The momentary ON switch
   
-  int throttlePosition;   // The pot position values
+  bool deadman_switch;    // The momentary ON switch
+  int pos_x; // The pot position values for the x axis
+  int pos_y; // The pot position values for the y axis
+  bool press_pin; // The joystick press value 
   
 } myData;                 // This can be accessed in the form:  myData.throttlePosition  etc.
 
 
 void setup()
 {
-  Serial.begin(115200);   // MUST reset the Serial Monitor to 115200 (lower right of window )
-
+  // Arduino config
+  Serial.begin(115200);  // MUST reset the Serial Monitor to 115200 (lower right of window )
   printf_begin(); // Needed for "printDetails" Takes up some memory
-  
+
+
+  // Radio config
   radio.begin();          // Initialize the nRF24L01 Radio
-  radio.setChannel(108);  // 2.508 Ghz - Above most Wifi Channels
-  radio.setDataRate(RF24_2MPS); // fast at the expense of range
+  radio.setChannel(108);  // Above most WiFi frequencies
+  radio.setDataRate(RF24_2MBPS); // fast at the expense of range
   
   // Set the Power Amplifier Level of the NRF24 module
   // PALevelcan be one of four levels: RF24_PA_MIN, RF24_PA_LOW, RF24_PA_HIGH and RF24_PA_MAX
   radio.setPALevel(RF24_PA_MAX);
 
   // Open a writing and reading pipe on each radio, with opposite addresses
-  radio.openWritingPipe(addresses[1]);
-  radio.openReadingPipe(1, addresses[0]);
+  radio.openWritingPipe(addresses[0]);
+  radio.openReadingPipe(1, addresses[1]);
 
   // Start the radio listening for data
   radio.startListening();
 
-  //  radio.printDetails(); //Uncomment to show LOTS of debugging information
 
+  // Variables config
   //initialize default ppm values
   for(int i=0; i<CHANNEL_NUMBER; i++){
       ppm[i]= CHANNEL_DEFAULT_VALUE;
   }
+
 
   // set up pinMode of the output signal pin (going to the ESC)
   pinMode(outputSignalPin, OUTPUT);
@@ -103,8 +111,7 @@ void setup()
 void loop()
 {
 
-  if ( radio.available())
-  {
+  if ( radio.available()) {
 
     while (radio.available()) // While there is data ready to be retrieved from the receive pipe
     {
@@ -118,40 +125,35 @@ void loop()
     // print the received packet data
     Serial.print(F("Packet Received - Sent response "));
     Serial.print(myData._micros);
-    
-    Serial.print(F("uS pot"));
-    Serial.print(myData.throttlePosition);
+    Serial.println();
 
-    if ( myData.deadmansSwitch == 1)
-    {
-      Serial.println(F(" Switch ON"));
-    }
+    if (myData.deadman_switch)
+      Serial.println(F("deadman_switch ON"));
     else
-    {
-      Serial.println(F(" Switch OFF"));
-    }
+      Serial.println(F("deadman_switch OFF"));
+      
+    Serial.print(F("js_pos_x: "));
+    Serial.print(myData.pos_x);
+    Serial.print(F("js_pos_x_mapped: "));
+    int pos_x_map = map(myData.pos_x, 0, 1023, 1000, 2000);
+    Serial.print(pos_x_map);
+    
+    Serial.println();
 
+    Serial.print(F("js_pos_y: "));
+    Serial.print(myData.pos_y);
+    Serial.print(F("js_pos_y_mapped: "));
+    int pos_y_map = map(myData.pos_x, 0, 1023, 1000, 2000);
+    Serial.print(pos_y_map);
+    
+    Serial.println();
+
+    if (myData.press_pin)
+      Serial.println(F("js_click ON"));
+    else
+      Serial.println(F("js_click OFF"));
   }
-
-  // interpolate the throttle value across the desired PWM range
-  int throttle = map(myData.throttlePosition, 1023, 0, PWM_MIN, PWM_MAX);
-
-  // TRIMS
-  throttle += 0;
-
-  // interpolate the arming switch (deadmans) value across the desired PWM range
-  int arm = map(myData.switchOn, 0, 1, 1000, 2000);
-
-  // print out the interpolated pwm values
-  Serial.print(" Arm");
-  Serial.println(arm);
-
-  Serial.print(" Throttle");
-  Serial.print(throttle);
-  
-  ppm[0] = arm;  
-  ppm[1] = throttle;
-
+  Serial.println(F("NOT Receiving"));
 }
 
 // some kind of interrupt sub-routine that sends our PPM signal along the output
