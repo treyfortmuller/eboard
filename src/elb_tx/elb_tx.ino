@@ -39,13 +39,6 @@ const int numReadings = 20;
 
 /***************************** Variables *********************************/
 
-// Values of our inputs
-int val_dead_switch = 0;
-int val_js_click = 0;
-int val_js_x = 0;
-int val_js_y = 0;
-
-
 // Stored values to keep track of
 int readings[numReadings]; // the readings from the analog input
 int readIndex = 0;         // the index of the current reading
@@ -70,18 +63,16 @@ RF24 radio(PIN_RF24_CE, PIN_RF24_CSN);
 
 /***************************** Structs *********************************/
 
-// initialize a data strucuture for the transmitted packets
+// initialize a data strucuture for the tx packets ???
 struct dataStruct {
+  bool dead_switch;    // The momentary ON switch
+  int js_x; // The pot position values for the x axis
+  int throttle_pwm; // throttle averaged and formated as pwm
+  int js_y; // The pot position values for the y axis
+  bool js_click; // The joystick press value 
   unsigned long _micros;  // to save response times
-  
-  bool deadman_switch;    // The momentary ON switch
-  int pos_x; // The pot position values for the x axis
-  int pos_y; // The pot position values for the y axis
-  bool press_pin; // The joystick press value 
-  
 } myData;                 // This can be accessed in the form:  myData.throttlePosition  etc.
 
-// initialize a data strucuture for the received packets ???
 
 
 /***************************** Functions *********************************/
@@ -127,10 +118,10 @@ void setup()
 void read_inputs() 
 {
   // Read from switches and pots
-  val_dead_switch = digitalRead(PIN_DEAD_SWITCH);
-  val_js_click  = digitalRead(PIN_JS_CLICK);
-  val_js_x = analogRead(PIN_JS_X);
-  val_js_y = analogRead(PIN_JS_Y);
+  myData.dead_switch = digitalRead(PIN_DEAD_SWITCH);
+  myData.js_click  = digitalRead(PIN_JS_CLICK);
+  myData.js_x = analogRead(PIN_JS_X);
+  myData.js_y = analogRead(PIN_JS_Y);
 }
 
 void ramp_throttle()
@@ -139,7 +130,7 @@ void ramp_throttle()
   // subtract the last reading
   total = total - readings[readIndex];
   // read from the sensor
-  readings[readIndex] = val_js_x;
+  readings[readIndex] = myData.js_x;
   // add the reading to the total
   total = total + readings[readIndex];
   // advance to the next position in the array
@@ -152,20 +143,23 @@ void ramp_throttle()
 
   // calculate the throttle average
   throttle_avg = total / numReadings;
+
+  // map throttle_avg to pwm
+  myData.throttle_pwm = map(throttle_avg, 0, 1023, 1000, 2000);
 }
 
 void print_inputs() {
   // Serial output of all the controller inputs
   Serial.print("Switch:  ");
-  Serial.print(digitalRead(val_dead_switch));
+  Serial.print(digitalRead(myData.dead_switch));
   Serial.print("\n");
   
   Serial.print("Press:  ");
-  Serial.print(digitalRead(val_js_click));
+  Serial.print(digitalRead(myData.js_click));
   Serial.print("\n");
   
   Serial.print("X-axis: ");
-  Serial.print(analogRead(val_js_x));
+  Serial.print(analogRead(myData.js_x));
   Serial.print("\n");
 
   Serial.print("Smoothed throttle: ");
@@ -173,7 +167,7 @@ void print_inputs() {
   Serial.print("\n");
   
   Serial.print("Y-axis: ");
-  Serial.print(analogRead(val_js_y));
+  Serial.print(analogRead(myData.js_y));
   Serial.print("\n\n");
 }
 

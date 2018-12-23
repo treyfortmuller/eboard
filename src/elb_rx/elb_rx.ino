@@ -47,17 +47,15 @@ int armed = 1000;
 
 /***************************** Structs *********************************/
 
-// initialize a data strucuture for the received packets ???
+// initialize a data strucuture for the tx packets ???
 struct dataStruct {
+  bool dead_switch;    // The momentary ON switch
+  int js_x; // The pot position values for the x axis
+  int throttle_pwm; // throttle averaged and formated as pwm
+  int js_y; // The pot position values for the y axis
+  bool js_click; // The joystick press value 
   unsigned long _micros;  // to save response times
-  
-  bool deadman_switch;    // The momentary ON switch
-  int pos_x; // The pot position values for the x axis
-  int pos_y; // The pot position values for the y axis
-  bool press_pin; // The joystick press value 
-  
 } myData;                 // This can be accessed in the form:  myData.throttlePosition  etc.
-
 
 void setup()
 {
@@ -94,17 +92,6 @@ void setup()
   pinMode(outputSignalPin, OUTPUT);
   digitalWrite(outputSignalPin, !onState);  //set the PPM signal pin to the default polarity state
 
-  // wtf is all this shit working directly with registers
-  cli();
-  TCCR1A = 0; // set entire TCCR1 register to 0
-  TCCR1B = 0;
-  
-  OCR1A = 100;  // compare match register, change this
-  TCCR1B |= (1 << WGM12);  // turn on CTC mode
-  TCCR1B |= (1 << CS11);  // 8 prescaler: 0,5 microseconds at 16mhz
-  TIMSK1 |= (1 << OCIE1A); // enable timer compare interrupt
-  sei();
-  
 }
 
 
@@ -117,72 +104,37 @@ void loop()
     {
       radio.read( &myData, sizeof(myData) );             // Get the data
     }
-
     radio.stopListening();                               // First, stop listening so we can transmit
     radio.write( &myData, sizeof(myData) );              // Send the received data back.
     radio.startListening();                              // Now, resume listening so we catch the next packets.
 
+
     // print the received packet data
     Serial.print(F("Packet Received - Sent response "));
-    Serial.print(myData._micros);
-    Serial.println();
+    Serial.println(myData._micros);
 
-    if (myData.deadman_switch)
+    if (myData.dead_switch)
       Serial.println(F("deadman_switch ON"));
     else
       Serial.println(F("deadman_switch OFF"));
       
-    Serial.print(F("js_pos_x: "));
-    Serial.print(myData.pos_x);
-    Serial.print(F("js_pos_x_mapped: "));
-    int pos_x_map = map(myData.pos_x, 0, 1023, 1000, 2000);
-    Serial.print(pos_x_map);
+    Serial.print(F("js_x: "));
+    Serial.println(myData.js_x);
+    Serial.print(F(", throttle pwm: "));
+    Serial.println(myData.throttle_pwm);
     
-    Serial.println();
 
-    Serial.print(F("js_pos_y: "));
-    Serial.print(myData.pos_y);
-    Serial.print(F("js_pos_y_mapped: "));
-    int pos_y_map = map(myData.pos_x, 0, 1023, 1000, 2000);
-    Serial.print(pos_y_map);
-    
-    Serial.println();
+    Serial.print(F("js_y: "));
+    Serial.println(myData.js_y);
 
-    if (myData.press_pin)
+
+
+    if (myData.js_click)
       Serial.println(F("js_click ON"));
     else
       Serial.println(F("js_click OFF"));
-  }
-  Serial.println(F("NOT Receiving"));
-}
 
-// some kind of interrupt sub-routine that sends our PPM signal along the output
-ISR(TIMER1_COMPA_vect){  //leave this alone
-  static boolean state = true;
-  
-  TCNT1 = 0;
-  
-  if (state) {  //start pulse
-    digitalWrite(outputSignalPin, onState);
-    OCR1A = PULSE_LENGTH * 2;
-    state = false;
-  } else{  //end pulse and calculate when to start the next pulse
-    static byte cur_chan_numb;
-    static unsigned int calc_rest;
-  
-    digitalWrite(outputSignalPin, !onState);
-    state = true;
 
-    if(cur_chan_numb >= CHANNEL_NUMBER){
-      cur_chan_numb = 0;
-      calc_rest = calc_rest + PULSE_LENGTH;// 
-      OCR1A = (FRAME_LENGTH - calc_rest) * 2;
-      calc_rest = 0;
-    }
-    else{
-      OCR1A = (ppm[cur_chan_numb] - PULSE_LENGTH) * 2;
-      calc_rest = calc_rest + ppm[cur_chan_numb];
-      cur_chan_numb++;
-    }     
   }
 }
+
