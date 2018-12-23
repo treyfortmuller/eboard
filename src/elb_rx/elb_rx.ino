@@ -76,8 +76,8 @@ void setup()
   radio.setPALevel(RF24_PA_MAX);
 
   // Open a writing and reading pipe on each radio, with opposite addresses
-  radio.openWritingPipe(addresses[0]);
-  radio.openReadingPipe(1, addresses[1]);
+  radio.openWritingPipe(addresses[1]);
+  radio.openReadingPipe(1, addresses[0]);
 
   // Start the radio listening for data
   radio.startListening();

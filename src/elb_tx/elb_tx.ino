@@ -29,7 +29,8 @@ nRF24L01 Radio Module: See http://arduino-info.wikispaces.com/Nrf24L01-2.4GHz-Ho
 #define PIN_JS_X        0 // analog pin connected to joystick X-axis output
 #define PIN_JS_Y        1 // analog pin connected to joystick Y-axis output
 
-#define DELAY_READ_INPUT 100 // (ms) 100ms = 10Hz
+#define DELAY_READ_INPUT      100 // (ms) 100ms = 10Hz
+#define DELAY_PRINT_RX_OUTPUT 100 
 
 /***************************** Constants *********************************/
 
@@ -51,9 +52,9 @@ int readIndex = 0;         // the index of the current reading
 int total = 0;             // the running total
 int throttle_avg = 0;      // the average
 
-// delay to process inputs
+// Delays
 millisDelay input_delay;
-
+millisDelay print_rx_delay;
 
 unsigned long timeNow;  // Used to grab the current time, calculate delays
 unsigned long started_waiting_at;
@@ -113,7 +114,8 @@ void setup()
   pinMode(PIN_DEAD_SWITCH, INPUT);
   pinMode(PIN_JS_CLICK, INPUT);
 
-  input_delay.start(DELAY_READ_INPUT); // starts the delay
+  input_delay.start(DELAY_READ_INPUT); // starts the input read delay
+  print_rx_delay.start(DELAY_PRINT_RX_OUTPUT); // starts the rx print delay
 
   // Variables config
   // initialize the throttle smoothing array to 0
@@ -186,18 +188,21 @@ void process_throttle(bool verbose_output)
 void loop()
 {
   radio.stopListening(); // First, stop listening so we can talk.
-//  if (input_delay.isFinished()) {
-//    process_throttle(true);
-//    input_delay.start(DELAY_READ_INPUT);
-//  }
+  if (input_delay.isFinished()) {
+    process_throttle(true);
+    input_delay.start(DELAY_READ_INPUT);
+  }
   
   myData._micros = micros();  // Send back for timing
-  
-  Serial.print(F("Now sending  -  "));
+  if (print_rx_delay.remaining() == 0) {
+    Serial.print(F("Now sending  -  "));
+  }
 
   // Send data, checking for error ("!" means NOT)
   if (!radio.write( &myData, sizeof(myData) )) {
-    Serial.println(F("Transmit failed "));
+    if (print_rx_delay.remaining() == 0) {
+      Serial.println(F("Transmit failed "));
+    }
   }
 
   radio.startListening(); // Now, continue listening
@@ -212,28 +217,31 @@ void loop()
     }
   }
 
-  if ( timeout )
-  { // Describe the results
-    Serial.println(F("Response timed out -  no Acknowledge."));
+  if (print_rx_delay.remaining() == 0) {
+    if ( timeout )
+    { // Describe the results
+      Serial.println(F("Response timed out -  no Acknowledge."));
+    }
+    else
+    {
+      // Grab the response, compare, and send to Serial Monitor
+      radio.read( &myData, sizeof(myData) );
+      timeNow = micros();
+  
+      // Show it
+      Serial.print(F("Sent "));
+      Serial.print(timeNow);
+      Serial.print(F(", Got response "));
+      Serial.print(myData._micros);
+      Serial.print(F(", Round-trip delay "));
+      Serial.print(timeNow - myData._micros);
+      Serial.println(F(" microseconds "));
+    }
   }
-  else
-  {
-    // Grab the response, compare, and send to Serial Monitor
-    radio.read( &myData, sizeof(myData) );
-    timeNow = micros();
 
-    // Show it
-    Serial.print(F("Sent "));
-    Serial.print(timeNow);
-    Serial.print(F(", Got response "));
-    Serial.print(myData._micros);
-    Serial.print(F(", Round-trip delay "));
-    Serial.print(timeNow - myData._micros);
-    Serial.println(F(" microseconds "));
-
-
+ 
+  if (print_rx_delay.remaining() == 0) {
+    print_rx_delay.start(DELAY_PRINT_RX_OUTPUT);
   }
 
-//  // Send again after delay. When working OK, change to something like 100
-//  delay(100);
 }
