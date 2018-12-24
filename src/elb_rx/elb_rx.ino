@@ -2,6 +2,7 @@
 #include <nRF24L01.h>
 #include <RF24_config.h>
 #include <RF24.h>
+#include <Servo.h>
 
 /* 
 CONNECTIONS
@@ -25,17 +26,6 @@ nRF24L01 Radio Module: See http://arduino-info.wikispaces.com/Nrf24L01-2.4GHz-Ho
 #define PWM_MIN 850
 #define PWM_MAX 2150
 
-// CONFIGURATION
-#define CHANNEL_NUMBER 12  //set the number of channels
-#define CHANNEL_DEFAULT_VALUE 1000  //set the default servo value
-#define FRAME_LENGTH 22500  //set the PPM frame length in microseconds (1ms = 1000µs)
-#define PULSE_LENGTH 300  //set the pulse length
-#define onState 1  //set polarity of the pulses: 1 is positive, 0 is negative
-#define outputSignalPin 9  //set PPM signal output pin on the arduino
-
-// this array holds the values for the ppm signal
-int ppm[CHANNEL_NUMBER];
-
 // initialize objects
 /* Hardware configuration: Set up nRF24L01 radio on SPI bus plus (usually) pins 7 & 8 (Can be changed) */
 RF24 radio(PIN_RF24_CE, PIN_RF24_CSN);
@@ -43,11 +33,14 @@ RF24 radio(PIN_RF24_CE, PIN_RF24_CSN);
 // variables declaration
 byte addresses[][6] = {"1Node", "2Node"}; // These will be the names of the "Pipes"
 
-int armed = 1000;
+int DEFAULT_PWM = 1500;
+
+// for outputting PWM to the ESC
+Servo VESC; // create servo object to control the Vedder ESC
 
 /***************************** Structs *********************************/
 
-// initialize a data strucuture for the tx packets ???
+// initialize a data strucuture for the tx packets
 struct dataStruct {
   bool dead_switch;    // The momentary ON switch
   int js_x; // The pot position values for the x axis
@@ -63,6 +56,7 @@ void setup()
   Serial.begin(115200);  // MUST reset the Serial Monitor to 115200 (lower right of window )
   printf_begin(); // Needed for "printDetails" Takes up some memory
 
+  VESC.attach(9); // attaches the servo on pin 9 to the servo object
 
   // Radio config
   radio.begin();          // Initialize the nRF24L01 Radio
@@ -79,19 +73,6 @@ void setup()
 
   // Start the radio listening for data
   radio.startListening();
-
-
-  // Variables config
-  //initialize default ppm values
-  for(int i=0; i<CHANNEL_NUMBER; i++){
-      ppm[i]= CHANNEL_DEFAULT_VALUE;
-  }
-
-
-  // set up pinMode of the output signal pin (going to the ESC)
-  pinMode(outputSignalPin, OUTPUT);
-  digitalWrite(outputSignalPin, !onState);  //set the PPM signal pin to the default polarity state
-
 }
 
 
@@ -122,19 +103,21 @@ void loop()
     Serial.println(myData.js_x);
     Serial.print(F(", throttle pwm: "));
     Serial.println(myData.throttle_pwm);
-    
 
     Serial.print(F("js_y: "));
     Serial.println(myData.js_y);
-
-
 
     if (myData.js_click)
       Serial.println(F("js_click ON"));
     else
       Serial.println(F("js_click OFF"));
 
-
+    // write PWM to the ESC
+    if (myData.dead_switch)
+      VESC.writeMicroseconds(myData.throttle_pwm);
+    else
+      VESC.writeMicroseconds(DEFAULT_PWM);
+   
   }
 }
 
