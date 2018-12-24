@@ -119,5 +119,8 @@ void loop()
       VESC.writeMicroseconds(DEFAULT_PWM);
    
   }
+  else {
+    VESC.writeMicroseconds(DEFAULT_PWM); // failsafe in case of lost connection
+  }
 }
 

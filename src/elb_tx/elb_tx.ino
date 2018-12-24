@@ -145,7 +145,7 @@ void ramp_throttle()
   throttle_avg = total / numReadings;
 
   // map throttle_avg to pwm
-  myData.throttle_pwm = map(throttle_avg, 0, 1023, 1000, 2000);
+  myData.throttle_pwm = map(throttle_avg, 0, 1023, 1300, 1700);
 }
 
 void print_inputs() {
@@ -162,8 +162,8 @@ void print_inputs() {
   Serial.print(analogRead(myData.js_x));
   Serial.print("\n");
 
-  Serial.print("Smoothed throttle: ");
-  Serial.print(throttle_avg);
+  Serial.print("Smoothed PWM throttle: ");
+  Serial.print(myData.throttle_pwm);
   Serial.print("\n");
   
   Serial.print("Y-axis: ");
