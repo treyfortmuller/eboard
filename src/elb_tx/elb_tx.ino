@@ -145,7 +145,7 @@ void ramp_throttle()
   throttle_avg = total / numReadings;
 
   // map throttle_avg to pwm
-  myData.throttle_pwm = map(throttle_avg, 0, 1023, 1300, 1700);
+  myData.throttle_pwm = map(throttle_avg, 0, 1023, 1050, 1950);
 }
 
 void print_inputs() {
